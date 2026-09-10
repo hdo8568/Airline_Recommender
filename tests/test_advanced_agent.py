@@ -79,6 +79,14 @@ class AdvancedAgentTests(unittest.TestCase):
         after = self.store.load("a")["preferences"]
         self.assertEqual(before, after)
 
+    def test_trip_summary_reflects_saved_preferences(self):
+        self.agent.reply("a", "Chicago under 900 nonstop only")
+        answer = self.agent.reply("a", "what do you know about my trip?")
+        self.assertIn("ORD", answer)
+        self.assertIn("$900", answer)
+        self.assertIn("up to 0 stop", answer)
+        self.assertIn(self.agent.context["destination"], answer)
+
     def test_provider_change_invalidates_recommendation(self):
         self.agent.reply("a", "Chicago")
         self.agent.provider.label = "different provider"
