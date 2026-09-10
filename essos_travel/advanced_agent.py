@@ -19,6 +19,10 @@ class AdvancedAgent(Agent):
 
         low = text.lower().strip()
 
+        if re.search(r"\b(what do you know about my trip|summarize my trip|what are my preferences|what filters|current filters|my trip details)\b", low):
+            response = self.trip_summary(state)
+            return self._save_direct_reply(session, state, text, response)
+
         if re.search(r"\b(when do i need to arrive|when should i arrive|when can i fly back|when can i return|what are my dates|what dates do i need)\b", low):
             response = self.trip_dates()
             return self._save_direct_reply(session, state, text, response)
@@ -44,6 +48,18 @@ class AdvancedAgent(Agent):
         ])[-12:]
         self.store.save(session, state)
         return response
+
+    def trip_summary(self, state):
+        preferences = state["preferences"]
+        origin = preferences["origin"] or "not set yet"
+        budget = "no budget cap" if preferences["budget"] is None else f"${preferences['budget']:,.0f} total budget"
+        stops = "any number of stops" if preferences["max_stops"] is None else f"up to {preferences['max_stops']} stop(s) each way"
+        return (
+            f"Clinic: {self.context['clinic']} via {self.context['destination']}. "
+            f"Current search: {origin} → {self.context['destination']}, depart {preferences['outbound_date']}, "
+            f"return {preferences['return_date']}, {preferences['adults']} adult(s), {budget}, {stops}, "
+            f"ranked by {preferences['sort']}."
+        )
 
     def trip_dates(self):
         return (
