@@ -1,5 +1,10 @@
+import sys
 import tempfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from essos_travel.advanced_agent import AdvancedAgent
 from essos_travel.config import sample_context
