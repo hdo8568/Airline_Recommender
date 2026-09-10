@@ -7,8 +7,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .advanced_agent import AdvancedAgent
 from .config import LOCAL, load_context, settings, write_private
-from .conversation import Agent, ClaudeIntent, basic_intent
+from .conversation import basic_intent
+from .llm_interpreter import SafeClaudeIntent
 from .providers import DuffelFlights, MockFlights
 from .storage import Store
 
@@ -16,8 +18,8 @@ from .storage import Store
 def make_agent(args, store, context):
     config = settings()
     provider = MockFlights() if args.provider == "mock" else DuffelFlights(config.get("DUFFEL_ACCESS_TOKEN"))
-    interpreter = basic_intent if args.interpreter == "basic" else ClaudeIntent(config.get("ANTHROPIC_API_KEY"), config.get("ANTHROPIC_MODEL"))
-    return Agent(store, context, provider, interpreter)
+    interpreter = basic_intent if args.interpreter == "basic" else SafeClaudeIntent(config.get("ANTHROPIC_API_KEY"), config.get("ANTHROPIC_MODEL"))
+    return AdvancedAgent(store, context, provider, interpreter)
 
 
 def configure():
@@ -73,9 +75,17 @@ def main():
         if args.provider != "mock" or args.interpreter != "basic":
             raise ValueError("The scripted demo always uses sample flights and the offline parser. Use chat for live providers.")
         with tempfile.TemporaryDirectory() as folder:
-            agent = Agent(Store(Path(folder) / "state.sqlite3"), context, MockFlights())
+            agent = AdvancedAgent(Store(Path(folder) / "state.sqlite3"), context, MockFlights())
             print("ESSOS / FIRST FLIGHT DEMO\nFictional clinic, invented flights, offline parser. No messages sent.\n")
-            for text in ["Find flights for my appointment", "Chicago under 900", "nonstop only", "why option 1?", "under 500", "no budget limit"]:
+            for text in [
+                "Find flights for my appointment",
+                "Chicago under 900",
+                "nonstop only",
+                "why option 1?",
+                "no budget limit",
+                "compare the options",
+                "which one would you recommend?",
+            ]:
                 print(f"You: {text}\nAssistant: {agent.reply('demo', text)}\n")
         return
     store = Store(LOCAL / "state.sqlite3")
