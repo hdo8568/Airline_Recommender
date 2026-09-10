@@ -79,6 +79,13 @@ class AdvancedAgentTests(unittest.TestCase):
         after = self.store.load("a")["preferences"]
         self.assertEqual(before, after)
 
+    def test_provider_change_invalidates_recommendation(self):
+        self.agent.reply("a", "Chicago")
+        self.agent.provider.label = "different provider"
+        answer = self.agent.reply("a", "which one would you recommend?")
+        self.assertIn("current shortlist", answer)
+        self.assertEqual(self.store.load("a")["offers"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
