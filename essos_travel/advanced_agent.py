@@ -31,7 +31,7 @@ class AdvancedAgent(Agent):
             response = self.trip_destination()
             return self._save_direct_reply(session, state, text, response)
 
-        if re.search(r"\b(recommend|best option|best one|which one|which would you|which should i|what would you pick)\b", low):
+        if re.search(r"\b(recommend|best option|best one|which would you|which should i|what would you pick|what should i pick|what's best|whats best)\b", low):
             response = self.recommend(state)
             return self._save_direct_reply(session, state, text, response)
 
