@@ -58,6 +58,27 @@ class AdvancedAgentTests(unittest.TestCase):
         after = self.store.load("a")["preferences"]
         self.assertEqual(before, after)
 
+    def test_date_question_uses_known_clinic_context(self):
+        answer = self.agent.reply("a", "when do I need to arrive?")
+        context = self.agent.context
+        self.assertIn(context["arrival_deadline"], answer)
+        self.assertIn(context["return_not_before"], answer)
+        self.assertNotIn("Which airport", answer)
+
+    def test_destination_question_uses_known_clinic_context(self):
+        answer = self.agent.reply("a", "where am I going?")
+        context = self.agent.context
+        self.assertIn(context["clinic"], answer)
+        self.assertIn(context["destination"], answer)
+
+    def test_context_questions_do_not_change_preferences(self):
+        self.agent.reply("a", "Chicago under 900")
+        before = self.store.load("a")["preferences"].copy()
+        self.agent.reply("a", "what are my dates?")
+        self.agent.reply("a", "what is my destination?")
+        after = self.store.load("a")["preferences"]
+        self.assertEqual(before, after)
+
 
 if __name__ == "__main__":
     unittest.main()
