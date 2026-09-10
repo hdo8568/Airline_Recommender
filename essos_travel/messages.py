@@ -7,6 +7,7 @@ import hashlib
 import sqlite3
 import subprocess
 import time
+import unicodedata
 from pathlib import Path
 
 from .config import LOCAL, ROOT, private_dir, write_private
@@ -65,6 +66,14 @@ def check_sending_access():
     print("Messages automation is accessible. Actual sending/delivery still needs testing.", flush=True)
 
 
+def readable_text(value):
+    """Drop Apple attachment placeholders and invisible-only bodies."""
+    if not isinstance(value, str):
+        return ""
+    cleaned = "".join(c for c in value if c != "\ufffc" and unicodedata.category(c) != "Cf")
+    return cleaned.strip()
+
+
 def normalize_peer(value):
     value = value.strip()
     import re
@@ -119,12 +128,12 @@ class MessagesReader:
                 stamp /= 1e9
             if time.time() - (stamp + 978307200) > 600:
                 continue  # Do not reply to old messages after a long outage.
-            text = row["text"]
+            text = readable_text(row["text"])
             if not text and row["body"] and self.decoder.exists():
                 try:
                     result = subprocess.run([str(self.decoder)], input=base64.b64encode(row["body"]),
                         capture_output=True, timeout=5, check=True)
-                    text = result.stdout.decode("utf-8").strip()
+                    text = readable_text(result.stdout.decode("utf-8"))
                 except (subprocess.SubprocessError, UnicodeError, OSError):
                     text = None
             messages.append({"rowid": row["rowid"], "guid": row["guid"], "text": text})
@@ -152,7 +161,7 @@ def run_bridge(agent, store, peer, send=False, reader=None, sender=send_message,
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         lock.close()
-        raise ValueError("A Messages bridge is already running in this checkout.") from None
+        raise ValueError("Another reply window is already running. In that Terminal window press Control+C, then reopen this launcher.") from None
     try:
         reader = reader or MessagesReader()
         identity = hashlib.sha256(peer.encode()).hexdigest()[:16]
@@ -163,6 +172,7 @@ def run_bridge(agent, store, peer, send=False, reader=None, sender=send_message,
             store.set_cursor(channel, after)
         print("SEND MODE: replies will be submitted to Messages." if send else "DRY RUN: replies appear here only; nothing will be sent.")
         print("Only the specified tester’s new direct iMessages are processed. Ctrl+C stops.\n", flush=True)
+        print("Waiting for a NEW message from the tester you entered. Existing history is not a new test.", flush=True)
         while True:
             # Take watermark before reading, so later arrivals cannot be skipped.
             watermark = reader.latest()
@@ -171,6 +181,7 @@ def run_bridge(agent, store, peer, send=False, reader=None, sender=send_message,
                 event = channel + ":" + message["guid"]
                 if not store.claim(event, channel):
                     continue
+                message["text"] = readable_text(message["text"])
                 if not message["text"]:
                     store.mark(event, "unsupported_body")
                     print("Skipped a message without readable text. Check the decoder; attachments are not supported.", flush=True)
@@ -185,13 +196,17 @@ def run_bridge(agent, store, peer, send=False, reader=None, sender=send_message,
                     store.mark(event, "ignored_while_paused")
                     continue
                 try:
+                    started = time.monotonic()
+                    print("Processing tester message; a live search can take up to roughly 30 seconds. Please wait.", flush=True)
                     reply = agent.reply(channel, message["text"])
+                    print(f"Reply prepared in {time.monotonic() - started:.1f}s.", flush=True)
                     store.mark(event, "prepared", reply)
                     print(f"Tester: {message['text']}\nAssistant: {reply}\n", flush=True)
                     if send:
                         store.mark(event, "submitting")
                         sender(peer, reply)
                         store.mark(event, "submitted_unverified")
+                        print("Reply submitted to Messages; receipt on the phone is not independently verified.", flush=True)
                     else:
                         store.mark(event, "dry_run")
                 except Exception as exc:

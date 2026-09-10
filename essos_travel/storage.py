@@ -17,6 +17,9 @@ class Store:
             CREATE TABLE IF NOT EXISTS events (
               id TEXT PRIMARY KEY, session TEXT NOT NULL, status TEXT NOT NULL,
               response TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS searches (
+              id INTEGER PRIMARY KEY, session TEXT NOT NULL, created TEXT DEFAULT CURRENT_TIMESTAMP,
+              value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS cursors (id TEXT PRIMARY KEY, value INTEGER NOT NULL);
         """)
 
@@ -44,3 +47,7 @@ class Store:
     def set_cursor(self, name, value):
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO cursors VALUES (?,?)", (name, value))
+
+    def record_search(self, session, value):
+        with self.db:
+            self.db.execute("INSERT INTO searches(session,value) VALUES (?,?)", (session, json.dumps(value)))

@@ -124,3 +124,9 @@ Tests use synthetic data, stubbed provider responses, and a fake Messages databa
 ## Troubleshooting sending
 
 Full Disk Access permits reading messages; Automation permits controlling Messages to send. Run `Check Sending Access.command` from Terminal and allow the permission prompt. This check sends nothing. Send mode now performs this check before listening. Failures display a sanitized error code, also saved in ignored `.local/last-send-error.json`; uncertain messages are never retried automatically.
+
+## Live demo and diagnostics
+
+Open `Start Live iMessage Replies.command` for real Duffel searches using the saved live key. The original `Start iMessage Replies.command` is still the mock demo. Stop the previous bridge with Control+C before changing launchers. Restarting is necessary to load edited code.
+
+`Check Project Status.command` reports local readiness and recent search/error status without contacting external services or reading the personal Messages inbox. New searches are recorded in SQLite's `searches` table. See `docs/RELIABILITY_UPDATE.md` for retry behavior, validation, and limitations.

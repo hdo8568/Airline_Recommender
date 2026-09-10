@@ -70,3 +70,5 @@ The first offline run preserved the $900 budget when “nonstop only” was adde
 ## Integration follow-up
 
 The tester confirmed incoming iMessage reading and sample reply generation in Terminal. The first send attempt reported an ambiguous failure; actual delivery remains unverified. Added a no-send Automation permission check, sanitized sending diagnostics, and enabled-account selection using the local Messages scripting dictionary. All 23 unit tests pass; these do not establish successful real delivery.
+
+The user subsequently confirmed actual reply receipt on the tester phone. The demonstrated sequence narrowed Chicago flights to nonstop under $900, then correctly returned no matches under $800. This verifies the sample-data path end to end, not live providers. Whitespace-only messages are now skipped; 24 automated tests pass. Restart the running bridge to load the fix.

@@ -132,6 +132,21 @@ class MessagesTests(unittest.TestCase):
         self.assertEqual([r[0] for r in store.db.execute("SELECT status FROM events ORDER BY rowid")],
                          ["paused", "ignored_while_paused", "resumed", "submitted_unverified"])
 
+    def test_blank_messages_never_send(self):
+        for index, text in enumerate(("", " ", "\u00a0", "\n\t")):
+            row = self.add(f"blank-{index}")
+            self.db.execute("UPDATE message SET text=? WHERE ROWID=?", (text, row))
+        self.db.commit()
+        reader = MessagesReader(self.path)
+        self.addCleanup(reader.db.close)
+        store = Store(self.folder / "state.sqlite3")
+        self.addCleanup(store.db.close)
+        agent = Agent(store, sample_context(), MockFlights())
+        with patch.object(store, "cursor", return_value=0), patch("essos_travel.messages.LOCAL", self.folder), contextlib.redirect_stdout(io.StringIO()):
+            run_bridge(agent, store, "+13125550123", send=True, reader=reader,
+                       sender=lambda *a: self.fail("Blank message triggered a reply"), once=True)
+        self.assertEqual([r[0] for r in store.db.execute("SELECT status FROM events")], ["unsupported_body"] * 4)
+
     def test_peer_format(self):
         self.assertEqual(normalize_peer("+1 (312) 555-0123"), "+13125550123")
         with self.assertRaises(ValueError):

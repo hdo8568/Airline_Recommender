@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+import time
+from collections import Counter
 from datetime import date, datetime
 from decimal import Decimal
 
-from .providers import ServiceError, eligible, request_json
+from .providers import ServiceError, eligible, request_json, distinct_itineraries, flight_details, rejection_reason
 
 AIRPORTS = {"chicago": "ORD", "o'hare": "ORD", "jfk": "JFK", "newark": "EWR", "boston": "BOS",
     "los angeles": "LAX", "san francisco": "SFO", "seattle": "SEA", "miami": "MIA",
@@ -158,6 +160,7 @@ class Agent:
         if state.get("provider") != self.provider.label:
             state["offers"], state["history"] = [], []
             state["provider"] = self.provider.label
+        self.last_search = None
         try:
             intent = self.interpreter(text, state)
             response = self.respond(state, intent)
@@ -166,6 +169,8 @@ class Agent:
             response = f"I couldn’t complete that request. {exc} No flights were booked."
         except (ValueError, TypeError, KeyError) as exc:
             response = "I couldn’t apply that change. " + (str(exc) if isinstance(exc, ValueError) else "Please use a supported preference.")
+        if self.last_search is not None:
+            self.store.record_search(session, self.last_search)
         state["history"] = (state.get("history", []) + [{"role": "user", "text": text}, {"role": "assistant", "text": response}])[-12:]
         self.store.save(session, state)
         return response
@@ -194,7 +199,7 @@ class Agent:
                 return "That offer is no longer current. Say ‘search again’ to refresh it."
             return (f"{self.provider.label}\nOption {index} fits your saved travel dates and arrives before the clinic deadline. "
                 f"It has at most {offer['stops']} stop(s) each way and costs ${Decimal(offer['amount']):,.2f} total for your party. "
-                f"Results are ordered by {state['preferences']['sort']}. Baggage/refund terms are not verified. Nothing is booked.")
+                f"Results are ordered by {state['preferences']['sort']}. Baggage/refund terms are not verified. Nothing is booked.\n" + flight_details(offer))
         changes = intent.get("changes", {})
         validate_changes(changes)
         preferences = {**state["preferences"], **changes}
@@ -211,17 +216,31 @@ class Agent:
         state["preferences"], state["offers"] = preferences, []
         if not preferences["origin"]:
             return f"I have your clinic destination ({self.context['destination']}) and dates. Which airport are you leaving from?"
-        offers = [o for o in self.provider.search(preferences, self.context) if eligible(o, preferences, self.context)]
+        started = time.monotonic()
+        self.last_search = {"provider": self.provider.label, "preferences": dict(preferences),
+                            "destination": self.context["destination"], "status": "searching"}
+        try:
+            received = self.provider.search(preferences, self.context)
+        except ServiceError as exc:
+            self.last_search.update(status="failed", error=str(exc), elapsed_seconds=round(time.monotonic()-started, 2))
+            raise
+        reasons = Counter()
+        offers = []
+        for offer in received:
+            reason = rejection_reason(offer, preferences, self.context)
+            if reason:
+                reasons[reason] += 1
+            else:
+                offers.append(offer)
+        self.last_search.update(status="success", elapsed_seconds=round(time.monotonic()-started, 2),
+            normalized_offers=len(received), eligible_offers=len(offers), rejection_counts=dict(reasons))
         if preferences["sort"] == "fastest":
             offers.sort(key=lambda o: (o["duration_minutes"] or float("inf"), Decimal(o["amount"])))
         else:
             offers.sort(key=lambda o: (Decimal(o["amount"]), o["stops"]))
-        # Retain distinct itineraries rather than showing fare variants as separate options.
-        unique = {}
-        for offer in offers:
-            key = tuple((s["origin"], s["destination"], s["departing_at"], s["arriving_at"], s["stops"]) for s in offer["slices"])
-            unique.setdefault((offer["airline"], key), offer)
-        state["offers"] = list(unique.values())[:3]
+        grouped = distinct_itineraries(offers)
+        state["offers"] = grouped[:3]
+        self.last_search.update(distinct_itineraries=len(grouped), displayed_offers=len(state["offers"]))
         summary = f"{preferences['origin']} ↔ {self.context['destination']} · depart {preferences['outbound_date']} · return {preferences['return_date']}"
         if not state["offers"]:
             return f"{self.provider.label}\n{summary}\nNo USD offers from this search fit all your constraints. Try a higher budget, more stops, or different permitted dates. I haven’t relaxed anything."
@@ -230,5 +249,12 @@ class Agent:
             out, back = offer["slices"]
             lines.append(f"{index}. {offer['airline']} — ${Decimal(offer['amount']):,.2f}; up to {offer['stops']} stop(s) each way. "
                 f"Arrive {out['arriving_at'][:16].replace('T', ' ')}; return departs {back['departing_at'][:16].replace('T', ' ')}.")
+            if out.get("segments") and back.get("segments"):
+                def route(part):
+                    return " → ".join([part["segments"][0]["origin"]] + [seg["destination"] for seg in part["segments"]])
+                lines.append(f"Outbound {route(out)}: departs {out['departing_at'][:16].replace('T', ' ')}. "
+                    f"Return {route(back)}: arrives home {back['arriving_at'][:16].replace('T', ' ')}.")
+        if self.provider.label.startswith("LIVE") or self.provider.label.startswith("SANDBOX"):
+            lines.append("One fare per distinct itinerary is shown; other fare conditions may differ. Ask for details of an option.")
         lines.append("Times local to each airport. Prices may change; nothing booked. Try ‘nonstop only’, ‘under $900’, or ‘why option 2?’.")
         return "\n".join(lines)
