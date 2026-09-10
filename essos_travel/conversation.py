@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import copy
 import re
 import time
 from collections import Counter
@@ -12,7 +13,7 @@ from .providers import ServiceError, eligible, request_json, distinct_itinerarie
 AIRPORTS = {"chicago": "ORD", "o'hare": "ORD", "jfk": "JFK", "newark": "EWR", "boston": "BOS",
     "los angeles": "LAX", "san francisco": "SFO", "seattle": "SEA", "miami": "MIA",
     "toronto": "YYZ", "heathrow": "LHR", "atlanta": "ATL", "dallas": "DFW"}
-HELP = "Tell me your departure airport, total round-trip budget in USD, and whether you need nonstop flights. You can also say ‘cheapest’, ‘fastest’, ‘2 adults’, ‘depart YYYY-MM-DD’, ‘return YYYY-MM-DD’, or ‘why option 2?’. Clinic dates stay fixed."
+HELP = "Tell me your departure airport, total round-trip budget in USD, and whether you need nonstop flights. You can also say ‘cheapest’, ‘fastest’, ‘2 adults’, ‘depart YYYY-MM-DD’, ‘return YYYY-MM-DD’, or ‘why option 2?’. Clinic dates stay fixed. Say ‘show preferences’ or ‘reset’."
 
 
 def basic_intent(text, state):
@@ -162,18 +163,37 @@ class Agent:
             state["provider"] = self.provider.label
         self.last_search = None
         try:
-            intent = self.interpreter(text, state)
-            response = self.respond(state, intent)
+            command = text.strip().lower()
+            if command in ("reset", "/reset", "start over"):
+                state = self.initial()
+                response = "Preferences reset; clinic destination and scheduling rules stay fixed.\n" + self.preference_summary(state["preferences"])
+            elif command in ("show preferences", "preferences", "/preferences"):
+                response = self.preference_summary(state["preferences"])
+            else:
+                intent = self.interpreter(text, state)
+                response = self.respond(state, intent)
         except ServiceError as exc:
             state["offers"] = []
             response = f"I couldn’t complete that request. {exc} No flights were booked."
         except (ValueError, TypeError, KeyError) as exc:
             response = "I couldn’t apply that change. " + (str(exc) if isinstance(exc, ValueError) else "Please use a supported preference.")
         if self.last_search is not None:
+            self.last_search.update(displayed_offer_snapshot=copy.deepcopy(state["offers"]),
+                response_text=response, user_message=text,
+                clinic_context=copy.deepcopy(self.context))
             self.store.record_search(session, self.last_search)
         state["history"] = (state.get("history", []) + [{"role": "user", "text": text}, {"role": "assistant", "text": response}])[-12:]
         self.store.save(session, state)
         return response
+
+    def preference_summary(self, preferences):
+        budget = "no limit" if preferences["budget"] is None else f"${preferences['budget']:,.2f} total round trip"
+        stops = "any stops" if preferences["max_stops"] is None else "nonstop only" if preferences["max_stops"] == 0 else f"up to {preferences['max_stops']} stops each way"
+        return (f"Active preferences: {preferences['origin'] or 'departure airport not set'} → {self.context['destination']}; "
+            f"{preferences['adults']} adult(s), economy; budget {budget}; {stops}; {preferences['sort']} first.\n"
+            f"Depart {preferences['outbound_date']}; return {preferences['return_date']}.\n"
+            f"Clinic: arrive by {self.context['arrival_deadline']}; return no earlier than {self.context['return_not_before']}. "
+            "Say ‘reset’ to clear travel preferences and restore default dates.")
 
     def respond(self, state, intent):
         action = intent.get("action")
@@ -242,6 +262,7 @@ class Agent:
         state["offers"] = grouped[:3]
         self.last_search.update(distinct_itineraries=len(grouped), displayed_offers=len(state["offers"]))
         summary = f"{preferences['origin']} ↔ {self.context['destination']} · depart {preferences['outbound_date']} · return {preferences['return_date']}"
+        summary += "\n" + self.preference_summary(preferences)
         if not state["offers"]:
             return f"{self.provider.label}\n{summary}\nNo USD offers from this search fit all your constraints. Try a higher budget, more stops, or different permitted dates. I haven’t relaxed anything."
         lines = [self.provider.label, summary, f"Economy · {preferences['adults']} adult(s) · prices are TOTAL round-trip USD · {preferences['sort']} first"]

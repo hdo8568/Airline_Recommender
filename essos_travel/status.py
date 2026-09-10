@@ -33,7 +33,7 @@ def main():
             row = db.execute('SELECT created,value FROM searches ORDER BY id DESC LIMIT 1').fetchone()
             if row:
                 print('Latest conversation search:', row[0], 'UTC')
-                print(json.dumps(json.loads(row[1]), indent=2))
+                print(json.dumps({k:v for k,v in json.loads(row[1]).items() if k not in ('displayed_offer_snapshot', 'response_text', 'user_message', 'clinic_context')}, indent=2))
             else:
                 print('No conversation searches recorded by the updated version yet.')
     report = LOCAL / 'duffel-evaluation.json'

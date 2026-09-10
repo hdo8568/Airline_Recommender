@@ -10,11 +10,11 @@ from .config import LOCAL, load_context, settings, write_private
 from .providers import DuffelFlights, ServiceError, eligible, request_json, rejection_reason, distinct_itineraries
 
 
-def evaluate(token, context, http=request_json):
+def evaluate(token, context, http=request_json, *, origin="ORD", adults=1):
     provider = DuffelFlights(token, http)
     preferences = {
-        'origin': 'ORD', 'outbound_date': context['outbound_date'],
-        'return_date': context['return_date'], 'adults': 1,
+        'origin': origin, 'outbound_date': context['outbound_date'],
+        'return_date': context['return_date'], 'adults': adults,
         'max_stops': None, 'budget': None, 'sort': 'cheapest',
     }
     report = {

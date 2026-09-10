@@ -130,3 +130,7 @@ Full Disk Access permits reading messages; Automation permits controlling Messag
 Open `Start Live iMessage Replies.command` for real Duffel searches using the saved live key. The original `Start iMessage Replies.command` is still the mock demo. Stop the previous bridge with Control+C before changing launchers. Restarting is necessary to load edited code.
 
 `Check Project Status.command` reports local readiness and recent search/error status without contacting external services or reading the personal Messages inbox. New searches are recorded in SQLite's `searches` table. See `docs/RELIABILITY_UPDATE.md` for retry behavior, validation, and limitations.
+
+## Preferences and saved history
+
+Text `show preferences` to see active restrictions or `reset` to clear them and restore the default clinic travel dates. Neither command makes a flight search. Reset does not delete historical records. New conversation searches save the exact response and displayed offer snapshots in SQLite, alongside search diagnostics. See `docs/API_DATABASE_CHECKPOINT.md` for the three-scenario live validation and limitations.
