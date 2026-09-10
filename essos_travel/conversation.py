@@ -190,11 +190,11 @@ class Agent:
             raise ValueError("Please ask for flights or a supported preference change.")
         messages = {
             "help": HELP,
-            "scope": "I can help with flights for your selected clinic. This version does not search hotels or clinics. Hotels are outside this demo.",
+            "scope": "I can help with flights for your selected clinic. Hotels and clinic search are not part of this version yet.",
             "purchase": "I can compare flights, but I cannot book or pay for them. Nothing has been purchased.",
             "unsupported": "I can’t verify that preference yet, so I left your search unchanged. " + HELP,
             "airport": "Which departure airport should I use? Please send the three-letter code, such as JFK or EWR.",
-            "currency": "Budgets are USD only, for the total round trip. Send the USD amount and I’ll keep the rest of your preferences.",
+            "currency": "I can only use a total round-trip budget in USD right now. Send the USD amount and I’ll keep the rest of your preferences.",
         }
         if action in messages:
             return messages[action]
@@ -253,7 +253,7 @@ class Agent:
         summary = f"{preferences['origin']} ↔ {self.context['destination']} · depart {preferences['outbound_date']} · return {preferences['return_date']}"
         summary += "\n" + self.preference_summary(preferences)
         if not state["offers"]:
-            return f"{self.provider.label}\n{summary}\nNo USD offers fit all of your current filters. I didn’t relax anything. You can raise the budget, allow more stops, or change the permitted dates."
+            return f"{self.provider.label}\n{summary}\nI couldn’t find a USD option that fits all of your current filters. I didn’t relax anything. You can raise the budget, allow more stops, or change the permitted dates."
         lines = [self.provider.label, summary, f"Economy · {preferences['adults']} adult(s) · TOTAL round-trip USD · {preferences['sort']} first"]
         for index, offer in enumerate(state["offers"], 1):
             out, back = offer["slices"]

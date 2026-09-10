@@ -1,6 +1,7 @@
 import argparse
 import getpass
 import json
+import os
 import platform
 import shutil
 import sys
@@ -8,7 +9,8 @@ import tempfile
 from pathlib import Path
 
 from .advanced_agent import AdvancedAgent
-from .config import LOCAL, load_context, settings, write_private
+from .config import LOCAL, settings, write_private
+from .context_source import resolve_context
 from .conversation import basic_intent
 from .llm_interpreter import SafeClaudeIntent
 from .providers import DuffelFlights, MockFlights
@@ -41,7 +43,8 @@ def main():
     parser.add_argument("command", choices=["chat", "demo", "configure", "doctor", "messages", "build-decoder", "events", "check-sending"], nargs="?", default="chat")
     parser.add_argument("--provider", choices=["mock", "duffel"], default="mock")
     parser.add_argument("--interpreter", choices=["basic", "claude"], default="basic")
-    parser.add_argument("--context", help="Patient context JSON file (otherwise uses local fictional example)")
+    parser.add_argument("--context", help="Patient context JSON file")
+    parser.add_argument("--context-url", help="Backend endpoint that returns the patient travel-context JSON")
     parser.add_argument("--peer", help="One tester’s international number or iMessage email")
     parser.add_argument("--send", action="store_true", help="Actually send iMessage replies; default is dry-run")
     args = parser.parse_args()
@@ -58,6 +61,7 @@ def main():
         print("Message decoder:", "built" if (LOCAL / "decode-message").exists() else "not built")
         print("Claude credentials/model:", "configured" if config.get("ANTHROPIC_API_KEY") and config.get("ANTHROPIC_MODEL") else "not configured")
         print("Duffel token:", "configured" if config.get("DUFFEL_ACCESS_TOKEN") else "not configured")
+        print("Backend context token:", "configured" if os.environ.get("ESSOS_CONTEXT_TOKEN") else "not configured")
         print("Messages permissions, delivery, and external API access are not tested by this check.")
         return
     if args.command == "build-decoder":
@@ -70,7 +74,7 @@ def main():
         for row in store.db.execute("SELECT created,status FROM events ORDER BY rowid DESC LIMIT 20"):
             print(*row, sep="  ")
         return
-    context = load_context(args.context)
+    context = resolve_context(args.context, args.context_url, os.environ.get("ESSOS_CONTEXT_TOKEN"))
     if args.command == "demo":
         if args.provider != "mock" or args.interpreter != "basic":
             raise ValueError("The scripted demo always uses sample flights and the offline parser. Use chat for live providers.")
@@ -100,7 +104,7 @@ def main():
     print("Language: " + ("Claude" if args.interpreter == "claude" else "limited offline parser (not AI)"))
     print(f"Clinic: {context['clinic']} · arrive by {context['arrival_deadline']} · return from {context['return_not_before']}")
     print("1 adult, economy, exact dates. Type /help, /reset, or /quit. No messages sent.\n")
-    session = f"terminal:{args.provider}:{args.interpreter}"
+    session = f"terminal:{args.provider}:{args.interpreter}:{context['patient_id']}"
     while True:
         try:
             text = input("You: ").strip()
