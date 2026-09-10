@@ -11,6 +11,12 @@ from .ranking import recommend_offer, recommendation_reason
 class AdvancedAgent(Agent):
     def reply(self, session, text):
         state = self.store.load(session) or self.initial()
+        if state.get("context") != self.context:
+            state = self.initial()
+        if state.get("provider") != self.provider.label:
+            state["offers"], state["history"] = [], []
+            state["provider"] = self.provider.label
+
         low = text.lower().strip()
 
         if re.search(r"\b(when do i need to arrive|when should i arrive|when can i fly back|when can i return|what are my dates|what dates do i need)\b", low):
