@@ -194,7 +194,7 @@ class Agent:
             "purchase": "I can compare flights, but I cannot book or pay for them. Nothing has been purchased.",
             "unsupported": "I can’t verify that preference yet, so I left your search unchanged. " + HELP,
             "airport": "Which departure airport should I use? Please send the three-letter code, such as JFK or EWR.",
-            "currency": "I can only use a total round-trip budget in USD right now. Send the USD amount and I’ll keep the rest of your preferences.",
+            "currency": "Budgets are USD only, for the total round trip. Send the USD amount and I’ll keep the rest of your preferences.",
         }
         if action in messages:
             return messages[action]
