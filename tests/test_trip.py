@@ -61,7 +61,7 @@ class TripTests(unittest.TestCase):
     def test_scope_and_purchase(self):
         self.assertIn("cannot book", self.agent.reply("a", "book it"))
         self.assertIn("Hotels and clinic search are not part", self.agent.reply("a", "find hotels"))
-        self.assertIn("USD only", self.agent.reply("a", "under £800"))
+        self.assertIn("budget in USD", self.agent.reply("a", "under £800"))
 
     def test_adult_prices_are_party_total(self):
         self.agent.reply("a", "Chicago 2 adults under 900")
