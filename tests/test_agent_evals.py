@@ -47,6 +47,11 @@ class AgentEvalTests(unittest.TestCase):
         self.assertIn("Which departure airport", answer)
         self.assertIsNone(self.store.load("a")["preferences"]["origin"])
 
+    def test_new_york_does_not_get_parsed_as_new_airport_code(self):
+        intent = basic_intent("I'm leaving from New York", self.agent.initial())
+        self.assertEqual(intent["action"], "airport")
+        self.assertEqual(intent["changes"], {})
+
     def test_scope_does_not_change_trip_state(self):
         self.agent.reply("a", "Chicago under 900")
         before = self.store.load("a")["preferences"].copy()
@@ -60,7 +65,7 @@ class AgentEvalTests(unittest.TestCase):
         before = self.store.load("a")["preferences"].copy()
         answer = self.agent.reply("a", "Buy option 1")
         after = self.store.load("a")["preferences"]
-        self.assertIn("can’t book or pay", answer)
+        self.assertIn("cannot book", answer)
         self.assertEqual(before, after)
 
 
