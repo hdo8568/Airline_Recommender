@@ -13,6 +13,14 @@ class AdvancedAgent(Agent):
         state = self.store.load(session) or self.initial()
         low = text.lower().strip()
 
+        if re.search(r"\b(when do i need to arrive|when should i arrive|when can i fly back|when can i return|what are my dates|what dates do i need)\b", low):
+            response = self.trip_dates()
+            return self._save_direct_reply(session, state, text, response)
+
+        if re.search(r"\b(where am i going|what airport am i flying to|what is my destination|which clinic)\b", low):
+            response = self.trip_destination()
+            return self._save_direct_reply(session, state, text, response)
+
         if re.search(r"\b(recommend|best option|best one|which one|which would you|which should i|what would you pick)\b", low):
             response = self.recommend(state)
             return self._save_direct_reply(session, state, text, response)
@@ -30,6 +38,18 @@ class AdvancedAgent(Agent):
         ])[-12:]
         self.store.save(session, state)
         return response
+
+    def trip_dates(self):
+        return (
+            f"Your clinic context says to arrive by {self.context['arrival_deadline']} and not fly back before "
+            f"{self.context['return_not_before']}. I’m using those as fixed scheduling constraints for flight search."
+        )
+
+    def trip_destination(self):
+        return (
+            f"You’re traveling to {self.context['clinic']} via {self.context['destination']}. "
+            "That clinic and destination are fixed in this prototype."
+        )
 
     def current_offers(self, state):
         offers = []
