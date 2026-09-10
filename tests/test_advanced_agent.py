@@ -37,6 +37,12 @@ class AdvancedAgentTests(unittest.TestCase):
         self.assertIn("Example Direct", answer)
         self.assertNotIn("Example Budget", answer)
 
+    def test_cheapest_question_is_not_misclassified_as_recommendation(self):
+        self.agent.reply("a", "Chicago")
+        answer = self.agent.reply("a", "which one is cheapest?")
+        self.assertNotIn("I’d pick option", answer)
+        self.assertIn("cheapest first", answer)
+
     def test_compare_two_options(self):
         self.agent.reply("a", "Chicago")
         answer = self.agent.reply("a", "compare 1 and 2")
