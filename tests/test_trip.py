@@ -30,7 +30,7 @@ class TripTests(unittest.TestCase):
         self.assertEqual(state["preferences"]["origin"], "ORD")
         self.assertEqual(len(state["offers"]), 1)
         self.assertIn("fits your saved", self.agent.reply("a", "why option 1?"))
-        self.assertIn("No USD offers", self.agent.reply("a", "under 500"))
+        self.assertIn("couldn’t find a USD option", self.agent.reply("a", "under 500"))
         self.assertEqual(self.store.load("a")["preferences"]["max_stops"], 0)
 
     def test_restart_and_patient_isolation(self):
@@ -60,8 +60,8 @@ class TripTests(unittest.TestCase):
 
     def test_scope_and_purchase(self):
         self.assertIn("cannot book", self.agent.reply("a", "book it"))
-        self.assertIn("does not search", self.agent.reply("a", "find hotels"))
-        self.assertIn("USD only", self.agent.reply("a", "under £800"))
+        self.assertIn("Hotels and clinic search are not part", self.agent.reply("a", "find hotels"))
+        self.assertIn("budget in USD", self.agent.reply("a", "under £800"))
 
     def test_adult_prices_are_party_total(self):
         self.agent.reply("a", "Chicago 2 adults under 900")
@@ -99,7 +99,6 @@ class TripTests(unittest.TestCase):
         deadline_day = self.context["arrival_deadline"][:10]
         offer["slices"][0]["arriving_at"] = deadline_day + "T19:00:00"
         self.assertFalse(eligible(offer, prefs, self.context))
-        # 16:00 UTC is 19:00 in Istanbul: also too late.
         offer["slices"][0]["arriving_at"] = deadline_day + "T16:00:00+00:00"
         self.assertFalse(eligible(offer, prefs, self.context))
 
