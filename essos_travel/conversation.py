@@ -30,6 +30,8 @@ def basic_intent(text, state):
         return {"action": "explain", "option": int(match[1]) if match else 2 if "second" in low else 3 if "third" in low else 1, "changes": {}}
     if low in ("help", "/help", "?", "hello", "hi"):
         return {"action": "help", "changes": {}}
+    if "new york" in low:
+        return {"action": "airport", "changes": {}}
     for name, airport in AIRPORTS.items():
         if re.search(r"\b" + re.escape(name) + r"\b", low):
             patches["origin"] = airport
@@ -38,8 +40,6 @@ def basic_intent(text, state):
         patches["origin"] = match[1].upper()
     elif re.fullmatch(r"[A-Z]{3}", text.strip()):
         patches["origin"] = text.strip()
-    if "new york" in low and "origin" not in patches:
-        return {"action": "airport", "changes": {}}
     amount = re.search(r"(?:under\s*|budget(?:\s+is|\s+of)?\s*|up to\s*|\$)(\d[\d,]*(?:\.\d{1,2})?)", low)
     if amount:
         patches["budget"] = float(amount[1].replace(",", ""))
@@ -166,7 +166,7 @@ class Agent:
         messages = {
             "help": HELP,
             "scope": "I can help with flights for your selected clinic. Hotels and clinic search are not part of this version yet.",
-            "purchase": "I can compare flights, but I can’t book or pay for them. Nothing has been purchased.",
+            "purchase": "I can compare flights, but I cannot book or pay for them. Nothing has been purchased.",
             "unsupported": "I can’t verify that preference yet, so I left your search unchanged. " + HELP,
             "airport": "Which departure airport should I use? Please send the three-letter code, such as JFK or EWR.",
             "currency": "I can only use a total round-trip budget in USD right now. Send the USD amount and I’ll keep the rest of your preferences.",
@@ -181,7 +181,7 @@ class Agent:
             if not eligible(offer, state["preferences"], self.context):
                 state["offers"] = []
                 return "That quote is no longer current. Say ‘search again’ and I’ll refresh it."
-            return (f"{self.provider.label}\nOption {index} matches your saved dates and current filters. "
+            return (f"{self.provider.label}\nOption {index} fits your saved dates and current filters. "
                 f"It has at most {offer['stops']} stop(s) each way and costs ${Decimal(offer['amount']):,.2f} total for your party. "
                 f"I ranked the results by {state['preferences']['sort']}. Baggage and refund terms are not verified. Nothing is booked.")
         changes = intent.get("changes", {})
@@ -192,7 +192,7 @@ class Agent:
         if preferences["outbound_date"] > self.context["arrival_deadline"][:10]:
             return "That departure is too late for the clinic arrival deadline. Send an earlier date; I left your current trip unchanged."
         if preferences["return_date"] < self.context["return_not_before"]:
-            return f"Your clinic context requires returning on or after {self.context['return_not_before']}. I left your current dates unchanged."
+            return f"Your clinic context requires a return on or after {self.context['return_not_before']}. I left your current dates unchanged."
         if preferences["return_date"] <= preferences["outbound_date"]:
             return "Your return has to be after your departure. I left your current dates unchanged."
         if preferences["origin"] == self.context["destination"]:
