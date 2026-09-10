@@ -9,18 +9,60 @@ import subprocess
 import time
 from pathlib import Path
 
-from .config import LOCAL, ROOT, private_dir
+from .config import LOCAL, ROOT, private_dir, write_private
 
 SEND_SCRIPT = '''on run argv
     set recipientAddress to item 1 of argv
     set replyText to item 2 of argv
     tell application "Messages"
-        set imService to first service whose service type = iMessage
-        set recipientBuddy to buddy recipientAddress of imService
+        set imService to first account whose service type = iMessage and enabled = true
+        set recipientBuddy to participant recipientAddress of imService
         send replyText to recipientBuddy
     end tell
 end run
 '''
+
+ACCESS_SCRIPT = '''tell application "Messages"
+    return count of (accounts whose service type = iMessage and enabled = true)
+end tell
+'''
+
+
+def sending_error(exc):
+    """Expose useful error codes without echoing message contents or recipient data."""
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return "Messages did not respond in time. Check for a macOS permission prompt. Delivery is uncertain; no automatic retry."
+    if isinstance(exc, subprocess.CalledProcessError):
+        import re
+        detail = exc.stderr or ""
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        codes = re.findall(r"\((-?\d+)\)", detail)
+        code = codes[-1] if codes else None
+        if code == "-1743":
+            return "Automation permission denied (-1743). Open System Settings → Privacy & Security → Automation → Terminal and enable Messages."
+        if code == "-1728":
+            return "Messages could not find the account or recipient (-1728). Check that your iMessage account is signed in and the tester address is correct."
+        if code == "-1712":
+            return "Messages timed out (-1712). Check for a permission prompt. Delivery is uncertain; no automatic retry."
+        return f"AppleScript failed (error {code or exc.returncode}). Keep Messages open and share this error code."
+    if isinstance(exc, OSError):
+        return f"Could not start Messages automation (OS error {exc.errno})."
+    return f"Response processing failed ({type(exc).__name__}). No automatic retry."
+
+
+def check_sending_access():
+    print("Checking Terminal’s permission to control Messages. No message will be sent. If asked, click Allow.", flush=True)
+    try:
+        result = subprocess.run(["/usr/bin/osascript", "-e", ACCESS_SCRIPT],
+            capture_output=True, text=True, check=True, timeout=55)
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise ValueError(sending_error(exc)) from None
+    if result.stdout.strip() == "0":
+        raise ValueError("Messages has no enabled iMessage account. Open Messages → Settings → iMessage and sign in.")
+    if not result.stdout.strip().isdigit():
+        raise ValueError("Messages returned an unexpected account status.")
+    print("Messages automation is accessible. Actual sending/delivery still needs testing.", flush=True)
 
 
 def normalize_peer(value):
@@ -152,10 +194,12 @@ def run_bridge(agent, store, peer, send=False, reader=None, sender=send_message,
                         store.mark(event, "submitted_unverified")
                     else:
                         store.mark(event, "dry_run")
-                except Exception:
+                except Exception as exc:
                     # A timeout could occur after sending. Never retry automatically.
                     store.mark(event, "needs_review")
-                    print("A response needs review; it will not be retried automatically. Run ‘python3 -m essos_travel events’ to inspect status.", flush=True)
+                    detail = sending_error(exc)
+                    write_private(LOCAL / "last-send-error.json", {"error": detail, "time": time.time()})
+                    print(detail + "\nThe response was not retried automatically.", flush=True)
             # If the batch is full, preserve messages beyond it for the next pass.
             after = messages[-1]["rowid"] if len(messages) == 50 else watermark
             store.set_cursor(channel, after)

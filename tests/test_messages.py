@@ -1,6 +1,7 @@
 import contextlib
 import io
 import sqlite3
+import subprocess
 import tempfile
 import time
 import unittest
@@ -9,7 +10,7 @@ from unittest.mock import patch
 
 from essos_travel.config import sample_context
 from essos_travel.conversation import Agent
-from essos_travel.messages import MessagesReader, normalize_peer, run_bridge, send_message
+from essos_travel.messages import MessagesReader, normalize_peer, run_bridge, send_message, sending_error, check_sending_access
 from essos_travel.providers import MockFlights
 from essos_travel.storage import Store
 
@@ -135,6 +136,20 @@ class MessagesTests(unittest.TestCase):
         self.assertEqual(normalize_peer("+1 (312) 555-0123"), "+13125550123")
         with self.assertRaises(ValueError):
             normalize_peer("3125550123")
+
+    def test_sending_diagnostics_do_not_leak_message(self):
+        error = subprocess.CalledProcessError(1, ["osascript"], stderr="private message contents (-1743)")
+        self.assertIn("Automation permission denied", sending_error(error))
+        self.assertNotIn("private message", sending_error(error))
+        self.assertIn("uncertain", sending_error(subprocess.TimeoutExpired("osascript", 20)))
+
+    def test_permission_check_never_sends(self):
+        with patch("essos_travel.messages.subprocess.run", return_value=subprocess.CompletedProcess([], 0, stdout="1\n")) as call, contextlib.redirect_stdout(io.StringIO()):
+            check_sending_access()
+        self.assertNotIn("send ", call.call_args[0][0][2])
+        with patch("essos_travel.messages.subprocess.run", return_value=subprocess.CompletedProcess([], 0, stdout="0\n")), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(ValueError, "no enabled"):
+                check_sending_access()
 
 
 if __name__ == "__main__":

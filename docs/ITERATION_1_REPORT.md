@@ -66,3 +66,7 @@ GitHub rejected creating an Actions workflow because the available credential la
 ## Iteration evidence
 
 The first offline run preserved the $900 budget when “nonstop only” was added. Tightening the budget to $500 produced no matching offers rather than silently reintroducing connecting flights. Switching providers clears old quotes so sample offers cannot be mislabeled live. Date and sender checks are ordinary code, independent of the model prompt.
+
+## Integration follow-up
+
+The tester confirmed incoming iMessage reading and sample reply generation in Terminal. The first send attempt reported an ambiguous failure; actual delivery remains unverified. Added a no-send Automation permission check, sanitized sending diagnostics, and enabled-account selection using the local Messages scripting dictionary. All 23 unit tests pass; these do not establish successful real delivery.

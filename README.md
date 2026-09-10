@@ -120,3 +120,7 @@ Tests use synthetic data, stubbed provider responses, and a fake Messages databa
 - [Claude tool definitions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)
 - [Existing local Messages technique](https://github.com/openclaw/imsg) — consulted as a reference, not installed or used as a dependency.
 - [Apple phone-number setup](https://support.apple.com/en-nz/108758)
+
+## Troubleshooting sending
+
+Full Disk Access permits reading messages; Automation permits controlling Messages to send. Run `Check Sending Access.command` from Terminal and allow the permission prompt. This check sends nothing. Send mode now performs this check before listening. Failures display a sanitized error code, also saved in ignored `.local/last-send-error.json`; uncertain messages are never retried automatically.

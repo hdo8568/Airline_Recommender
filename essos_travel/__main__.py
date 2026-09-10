@@ -36,7 +36,7 @@ def configure():
 
 def main():
     parser = argparse.ArgumentParser(description="Essos flights-only prototype")
-    parser.add_argument("command", choices=["chat", "demo", "configure", "doctor", "messages", "build-decoder", "events"], nargs="?", default="chat")
+    parser.add_argument("command", choices=["chat", "demo", "configure", "doctor", "messages", "build-decoder", "events", "check-sending"], nargs="?", default="chat")
     parser.add_argument("--provider", choices=["mock", "duffel"], default="mock")
     parser.add_argument("--interpreter", choices=["basic", "claude"], default="basic")
     parser.add_argument("--context", help="Patient context JSON file (otherwise uses local fictional example)")
@@ -45,6 +45,9 @@ def main():
     args = parser.parse_args()
     if args.command == "configure":
         return configure()
+    if args.command == "check-sending":
+        from .messages import check_sending_access
+        return check_sending_access()
     if args.command == "doctor":
         config = settings()
         print("Python:", platform.python_version())
@@ -78,7 +81,9 @@ def main():
     store = Store(LOCAL / "state.sqlite3")
     agent = make_agent(args, store, context)
     if args.command == "messages":
-        from .messages import run_bridge
+        from .messages import run_bridge, check_sending_access
+        if args.send:
+            check_sending_access()
         peer = args.peer or input("Tester’s full number (+country code) or iMessage email: ")
         return run_bridge(agent, store, peer, send=args.send)
     print("\nESSOS / FLIGHTS\n" + agent.provider.label)
