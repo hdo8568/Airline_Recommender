@@ -9,7 +9,8 @@ from pathlib import Path
 
 from .advanced_agent import AdvancedAgent
 from .config import LOCAL, load_context, settings, write_private
-from .conversation import ClaudeIntent, basic_intent
+from .conversation import basic_intent
+from .llm_interpreter import SafeClaudeIntent
 from .providers import DuffelFlights, MockFlights
 from .storage import Store
 
@@ -17,7 +18,7 @@ from .storage import Store
 def make_agent(args, store, context):
     config = settings()
     provider = MockFlights() if args.provider == "mock" else DuffelFlights(config.get("DUFFEL_ACCESS_TOKEN"))
-    interpreter = basic_intent if args.interpreter == "basic" else ClaudeIntent(config.get("ANTHROPIC_API_KEY"), config.get("ANTHROPIC_MODEL"))
+    interpreter = basic_intent if args.interpreter == "basic" else SafeClaudeIntent(config.get("ANTHROPIC_API_KEY"), config.get("ANTHROPIC_MODEL"))
     return AdvancedAgent(store, context, provider, interpreter)
 
 
