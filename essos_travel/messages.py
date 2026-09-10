@@ -152,13 +152,14 @@ def build_decoder():
         str(ROOT / "scripts/decode_message.swift"), "-o", str(LOCAL / "decode-message")], check=True)
 
 
-def run_bridge(agent, store, peer, send=False, reader=None, sender=send_message, once=False):
+def run_bridge(agent, store, peer, send=False, reader=None, sender=send_message, once=False, lock_held=False):
     peer = normalize_peer(peer)
     private_dir()
     # One owner across dry-run and sending prevents two responders on this checkout.
     lock = open(LOCAL / "messages.lock", "a")
     try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not lock_held:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         lock.close()
         raise ValueError("Another reply window is already running. In that Terminal window press Control+C, then reopen this launcher.") from None

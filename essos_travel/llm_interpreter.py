@@ -14,6 +14,7 @@ CONTEXT_FIELDS = (
     "procedure_date",
     "arrival_deadline",
     "return_not_before",
+    "return_not_before_at",
     "outbound_date",
     "return_date",
     "policy_note",

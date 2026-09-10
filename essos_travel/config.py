@@ -4,6 +4,7 @@ import json
 import os
 from datetime import date, timedelta
 from pathlib import Path
+from .travel_policy import apply_policy
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCAL = ROOT / ".local"
@@ -37,7 +38,7 @@ def settings():
 
 def sample_context():
     procedure = date.today() + timedelta(days=35)
-    return {
+    return apply_policy({
         "patient_id": "fictional-patient",
         "fictional": True,
         "clinic": "Example Clinic — fictional",
@@ -45,11 +46,11 @@ def sample_context():
         "timezone": "Europe/Istanbul",
         "procedure_date": procedure.isoformat(),
         "arrival_deadline": f"{procedure - timedelta(days=1)}T18:00:00+03:00",
-        "return_not_before": (procedure + timedelta(days=8)).isoformat(),
+        "return_not_before": (procedure + timedelta(days=2)).isoformat(),
         "outbound_date": (procedure - timedelta(days=2)).isoformat(),
-        "return_date": (procedure + timedelta(days=8)).isoformat(),
+        "return_date": (procedure + timedelta(days=2)).isoformat(),
         "policy_note": "Fictional clinic-supplied scheduling constraints for testing; not medical advice.",
-    }
+    })
 
 
 def load_context(path=None):
@@ -69,4 +70,4 @@ def load_context(path=None):
         date.fromisoformat(value[key])
     if not isinstance(value["destination"], str) or len(value["destination"]) != 3:
         raise ValueError("Use a three-letter destination airport code.")
-    return value
+    return apply_policy(value)

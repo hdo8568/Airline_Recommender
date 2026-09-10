@@ -181,7 +181,7 @@ class Agent:
         return (f"Active preferences: {preferences['origin'] or 'departure airport not set'} → {self.context['destination']}; "
             f"{preferences['adults']} adult(s), economy; budget {budget}; {stops}; {preferences['sort']} first.\n"
             f"Depart {preferences['outbound_date']}; return {preferences['return_date']}.\n"
-            f"Clinic: arrive by {self.context['arrival_deadline']}; return no earlier than {self.context['return_not_before']}. "
+            f"Clinic: arrive by {self.context['arrival_deadline']}; return no earlier than {self.context.get('return_not_before_at', self.context['return_not_before'])}. "
             "Say ‘reset’ to clear travel preferences and restore default dates.")
 
     def respond(self, state, intent):
@@ -217,7 +217,7 @@ class Agent:
         if preferences["outbound_date"] > self.context["arrival_deadline"][:10]:
             return "That departure is too late for the clinic arrival deadline. Send an earlier date; I left your current trip unchanged."
         if preferences["return_date"] < self.context["return_not_before"]:
-            return f"Your clinic context requires a return on or after {self.context['return_not_before']}. I left your current dates unchanged."
+            return f"Your clinic context requires a return on or after {self.context.get('return_not_before_at', self.context['return_not_before'])}. I left your current dates unchanged."
         if preferences["return_date"] <= preferences["outbound_date"]:
             return "Your return has to be after your departure. I left your current dates unchanged."
         if preferences["origin"] == self.context["destination"]:

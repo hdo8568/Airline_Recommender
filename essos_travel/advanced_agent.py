@@ -64,7 +64,7 @@ class AdvancedAgent(Agent):
     def trip_dates(self):
         return (
             f"Your clinic context says to arrive by {self.context['arrival_deadline']} and not fly back before "
-            f"{self.context['return_not_before']}. I’m using those as fixed scheduling constraints for flight search."
+            f"{self.context.get('return_not_before_at', self.context['return_not_before'])}. I’m using those as fixed scheduling constraints for flight search."
         )
 
     def trip_destination(self):

@@ -180,7 +180,14 @@ def rejection_reason(offer, preferences, context):
             arrival = arrival.replace(tzinfo=ZoneInfo(outward["arrival_timezone"]))
         if arrival > datetime.fromisoformat(context["arrival_deadline"]):
             return "arrives_after_clinic_deadline"
-        if inward["departing_at"][:10] < context["return_not_before"]:
+        from .travel_policy import boundaries
+        policy_arrival, policy_return = boundaries(context)
+        if arrival > policy_arrival:
+            return "arrives_after_clinic_deadline"
+        departure = datetime.fromisoformat(inward["departing_at"])
+        if departure.tzinfo is None:
+            departure = departure.replace(tzinfo=ZoneInfo(context["timezone"]))
+        if departure < policy_return or inward["departing_at"][:10] < context["return_not_before"]:
             return "return_before_permitted_date"
         expiry = datetime.fromisoformat(offer["expires_at"].replace("Z", "+00:00"))
         if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):

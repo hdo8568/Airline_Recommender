@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 
 from .config import load_context
+from .travel_policy import apply_policy
 
 
 REQUIRED_CONTEXT_FIELDS = (
@@ -45,7 +46,7 @@ def validate_context(value):
         raise ValueError("Clinic arrival deadline needs a timezone offset.")
     if value["outbound_date"] > deadline.date().isoformat() or value["return_date"] < value["return_not_before"] or value["return_date"] <= value["outbound_date"]:
         raise ValueError("Default travel dates conflict with clinic constraints.")
-    return value
+    return apply_policy(value)
 
 
 def load_backend_context(url, token=None, timeout=15):
