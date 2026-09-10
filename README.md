@@ -1,122 +1,187 @@
-# Essos Airline Recommender — first iteration
+# Essos Airline Recommender
 
-A flights-only assistant for a patient whose clinic and procedure dates are already known. It searches, filters and explains round-trip flights, then revises the shortlist as preferences change. It cannot purchase tickets, search clinics, or find hotels.
+Flights-only AI travel agent for a patient whose clinic and procedure dates are already known. It works through iMessage, keeps travel preferences across turns, searches live flights through Duffel, and can compare or recommend current options. It never purchases tickets.
 
-**Status:** runnable offline prototype; Claude and Duffel adapters implemented but require credentials and live verification. The direct Mac iMessage bridge is implemented and fixture-tested; real receive/send testing and macOS permissions remain necessary. No live capability is implied by a successful offline demo.
+## Current status
 
-## Try it now
+The flights MVP has been exercised end to end on a Mac with a real iMessage conversation, Claude, and live Duffel search. The automated suite passed 47 tests before the backend-context adapter was added. The iMessage bridge, Claude interpretation, live flight retrieval, preference persistence, comparison, and recommendation paths have therefore all been demonstrated.
 
-Requires Python 3.11+ (standard library only). macOS is required only for Messages.
+The remaining product integration is the source of patient context. The standalone demo still supports a fictional local patient record, while `--context-url` lets the same agent read the normalized trip context from a backend endpoint without changing the agent logic.
 
-Double-click **Try Demo.command**, or run from this repository:
+## Quick demo
+
+Requires Python 3.11+.
+
+```sh
+python3 -m essos_travel demo
+```
+
+For an interactive local chat:
 
 ```sh
 python3 -m essos_travel chat
 ```
 
-Try this conversation:
-
-1. `Find flights for my appointment`
-2. `Chicago under 900`
-3. `nonstop only`
-4. `why option 1?`
-5. `under 500`
-6. `no budget limit`
-
-The default uses **invented flights and a limited offline parser**, clearly labeled. It makes no network requests and sends no messages. Type `/reset` to clear preferences, `/help` for supported phrases, `/quit` to exit. `python3 -m essos_travel demo` runs a complete scripted example with isolated temporary state.
-
-The first run creates `.local/patient.json`, a **fictional** clinic record with future dates. Dates persist, so edit or regenerate that file if the demo becomes stale. It includes a required arrival deadline and earliest return date; these are test inputs, not general medical guidance. The demo uses IST as its one destination. No real patient data is supplied.
-
-## Optional AI and actual search
-
-Double-click **Configure Access.command**, or run:
+## Configure Claude and Duffel
 
 ```sh
 python3 -m essos_travel configure
 python3 -m essos_travel doctor
 ```
 
-Enter your Claude API key, a model ID available to your account, and a Duffel token. Hidden input protects keys from terminal display. Configuration does not validate access or make a paid call. These values can alternatively be supplied as `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, and `DUFFEL_ACCESS_TOKEN` environment variables.
+Credentials are stored in ignored `.local/settings.json` unless supplied through environment variables.
+
+Claude with mock flights:
 
 ```sh
-# Natural-language preferences, still sample flights:
-python3 -m essos_travel chat --interpreter claude
+python3 -m essos_travel chat --interpreter claude --provider mock
+```
 
-# Natural-language preferences and Duffel flight search:
+Claude with Duffel:
+
+```sh
 python3 -m essos_travel chat --interpreter claude --provider duffel
 ```
 
-`duffel_test_…` tokens produce **SANDBOX** results, not reliable real schedules. `duffel_live_…` tokens select **LIVE** search; account access must permit it. Claude and live search can incur provider charges. The code calls the offer-search endpoint only, never an order/payment endpoint. Credentials are not present in the repository.
+The code only uses Duffel offer search. It has no order, payment, or ticket-purchase path.
 
-The model extracts requested preference changes through a constrained tool call. Python validates those fields, calls the flight source, filters actual results, and formats the answer. The model does not invent the displayed flight facts. API failures never silently switch to sample flights.
+## Patient context
 
-## iMessage setup
+By default, the project uses `.local/patient.json`, creating a fictional example if needed.
 
-1. Confirm a **new iMessage** to your number/email arrives in Messages on this Mac. An SMS conversation or old synced history is not sufficient.
-2. In macOS System Settings → Privacy & Security → **Full Disk Access**, enable the terminal application that will run this program. Quit and reopen that terminal. This permission is broader than this program's query; the program itself reads only eligible messages from the designated tester.
-3. Build the helper (Apple Command Line Tools / `swiftc` required):
+You can still supply a JSON file:
 
-   ```sh
-   python3 -m essos_travel build-decoder
-   ```
+```sh
+python3 -m essos_travel chat --context /path/to/patient.json
+```
 
-4. Start **dry-run** mode, enter the tester’s full international phone number or iMessage email, then have them send a **new** message:
+Or point the agent at a backend endpoint that returns the same normalized context:
 
-   ```sh
-   python3 -m essos_travel messages
-   ```
+```sh
+python3 -m essos_travel chat --context-url https://your-backend.example/patient-context
+```
 
-   Replies appear in Terminal only. Confirm the right sender and text are detected.
+If the endpoint needs a bearer token, provide it without putting it in the repository:
 
-5. Stop with Ctrl+C. When ready to actually reply, run:
+```sh
+export ESSOS_CONTEXT_TOKEN='...'
+```
 
-   ```sh
-   python3 -m essos_travel messages --send
-   ```
+The backend response must contain:
 
-   macOS may request permission for Terminal to control Messages; allow it under **Automation → Messages**. Actual permissions/delivery can only be validated on the running Mac. Start a **new** test conversation message after changing modes: dry-run and send modes have separate checkpoints and preference state.
+```json
+{
+  "patient_id": "patient-123",
+  "clinic": "Clinic name",
+  "destination": "IST",
+  "timezone": "Europe/Istanbul",
+  "procedure_date": "2026-10-15",
+  "arrival_deadline": "2026-10-14T18:00:00+03:00",
+  "return_not_before": "2026-10-23",
+  "outbound_date": "2026-10-13",
+  "return_date": "2026-10-23"
+}
+```
 
-6. Add `--interpreter claude --provider duffel` when those connections have been verified. Keep the Mac awake, online, and the terminal running. No public server or inbound port is required.
+Clinic and medical scheduling constraints are treated as fixed application context. The conversation can change flight-search preferences, not those constraints.
 
-Only one designated **direct iMessage** conversation is supported per process. Group chats, SMS, reactions, outgoing messages, unreadable attachments, and messages older than ten minutes are ignored. First startup skips existing messages. `STOP` pauses that tester’s processing; `START` resumes it (control messages are not themselves answered). Ctrl+C shuts down the process.
+## iMessage
 
-Incoming text is read from SQLite in read-only mode. Some text is in a legacy attributed-string archive; the small Swift helper decodes this in an isolated process. Sending uses Messages' AppleScript interface with arguments, not shell interpolation. The active Messages account determines the outgoing identity; verify it in the test.
+Build the Messages decoder:
 
-Each message GUID is claimed before processing. A crash or ambiguous send is **not automatically retried**, avoiding duplicate replies at the cost of possibly missing one response. `submitted_unverified` means AppleScript returned successfully, not that delivery was independently confirmed. See recent statuses with `python3 -m essos_travel events`.
+```sh
+python3 -m essos_travel build-decoder
+```
 
-## Small, explicit boundaries
+Dry run, which reads a designated tester's new direct iMessages but sends nothing:
 
-- Economy; 1–6 adults; one departure airport and one clinic airport; exact outbound/return dates.
-- Budget is a **hard USD cap for the entire party’s round trip**. Non-USD offers are excluded; no currency conversion.
-- Clinic restrictions are immutable in chat. Update the context file for corrected clinic instructions.
-- Shortlist contains up to three distinct itineraries, sorted by cheapest or shortest outbound duration. It is not a claim to have searched the entire market.
-- Fare conditions, baggage, refunds, loyalty points, accessibility requirements and booking links are not verified/supported in this draft.
-- This is a demonstration, not a deployed patient service. No automatic recovery from every Messages schema change, no delivery guarantee, no background launch service.
-- A local program is not automatically fully private: enabling Claude sends recent conversation and trip preferences to Anthropic; enabling Duffel sends search criteria to Duffel. Only fictional patient context should be used for this trial.
+```sh
+python3 -m essos_travel messages
+```
 
-## Files and validation
+Actual replies:
 
-| File | Purpose |
-|---|---|
-| `essos_travel/conversation.py` | Preferences, optional Claude interpretation, clinic checks, shortlist explanations |
-| `essos_travel/providers.py` | Sample offers, Duffel search, independent offer validation |
-| `essos_travel/messages.py` | Local reading, allowlist, durable message deduplication, sending |
-| `essos_travel/storage.py` | SQLite conversation state and processing checkpoints |
-| `.local/` | Ignored credentials, fictional patient, conversation history and compiled helper |
-| `docs/ITERATION_1_REPORT.md` | What was built, decisions, checks, remaining work |
-| `docs/HANDOFF.md` | Concise context for a separate learning/review task |
+```sh
+python3 -m essos_travel messages --send
+```
+
+Full live stack:
+
+```sh
+python3 -m essos_travel messages --send --interpreter claude --provider duffel
+```
+
+Add `--context-url ...` to that command when the backend patient-context endpoint is available.
+
+The Mac terminal process needs Full Disk Access to read Messages and Automation permission to control Messages for sending. Only the explicitly entered direct-iMessage tester is processed. Group chats, SMS, reactions, outgoing messages, and stale messages are ignored.
+
+## Conversation behavior
+
+The agent already knows the clinic destination and required travel dates. It asks only for missing flight preferences and supports natural follow-ups such as:
+
+- `Chicago under 1200`
+- `nonstop only`
+- `anything faster?`
+- `compare the options`
+- `which one would you recommend?`
+- `what do you know about my trip?`
+- `when do I need to arrive?`
+
+Preferences persist across turns. Existing hard constraints are not silently relaxed when a search returns no matches.
+
+## Architecture
+
+```text
+iMessage / terminal
+        ↓
+AdvancedAgent
+        ↓
+Claude intent interpreter or offline parser
+        ↓
+validated preference state + fixed patient context
+        ↓
+Duffel or mock flight provider
+        ↓
+deterministic eligibility checks
+        ↓
+comparison / recommendation
+        ↓
+iMessage / terminal reply
+```
+
+The LLM interprets supported user intent. Ordinary Python remains responsible for immutable clinic constraints, provider calls, validation, filtering, ranking, and displayed flight facts.
+
+## Tests
 
 ```sh
 python3 -m unittest discover -s tests -v
-python3 -m essos_travel demo
+python3 scripts/run_agent_evals.py
 ```
 
-Tests use synthetic data, stubbed provider responses, and a fake Messages database. They never read personal messages or call external services. An optional GitHub Actions template is in docs/examples/github-tests.yml. Enabling it later requires a GitHub credential with workflow permission; it is not active in this iteration. It would run Python tests, not macOS integration tests.
+Tests use synthetic data and stubbed providers. They do not send messages or make live provider calls.
 
-## Implementation references
+## Important boundaries
 
-- [Duffel offer requests](https://duffel.com/docs/api/v2/offer-requests)
-- [Duffel test-mode limitations](https://duffel.com/docs/api/overview/test-mode)
-- [Claude tool definitions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)
-- [Existing local Messages technique](https://github.com/openclaw/imsg) — consulted as a reference, not installed or used as a dependency.
-- [Apple phone-number setup](https://support.apple.com/en-nz/108758)
+- Flights only.
+- Economy, 1–6 adults.
+- One departure airport and one clinic airport.
+- Exact outbound and return dates.
+- Budget is a hard total round-trip USD cap for the whole party.
+- No automatic currency conversion.
+- No booking/payment/ticket issuance.
+- Baggage, refund rules, loyalty points, and accessibility requirements are not verified in this MVP.
+- Prices and availability can change after a Duffel response.
+- Claude receives a minimized projection of trip context rather than the entire patient object.
+
+## Main files
+
+| File | Purpose |
+|---|---|
+| `essos_travel/advanced_agent.py` | Context questions, comparisons, recommendations |
+| `essos_travel/conversation.py` | Preference state, deterministic validation, search response formatting |
+| `essos_travel/llm_interpreter.py` | Claude intent extraction with minimized patient context |
+| `essos_travel/context_source.py` | Local-file or backend-API patient context |
+| `essos_travel/providers.py` | Mock and Duffel flight sources |
+| `essos_travel/messages.py` | Local macOS Messages receive/send bridge |
+| `essos_travel/storage.py` | Conversation and message-processing state |
+| `essos_travel/ranking.py` | Deterministic recommendation ranking |
